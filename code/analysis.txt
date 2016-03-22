@@ -1,0 +1,17 @@
+taxi data
+citibike data
+
+model for trip duration: both in taxi and citibike 
+compare two models
+
+taxi: model for trip duration
+- predictors: pickup location (latitude and longitude), dropoff location (latitude and longitude), pickup time
+	- location and distance - continous variables 
+	- how to use pickup time as a predictors: constract hour predictor: hour+min/60
+	- what if traveled distance much larger than distance: make linear model for traveled distance vs distance, than if not within 10% discard it
+
+- models: 
+svm - only possible to run if divide into hour chunks
+random tree - ok to run on the whole day
+ 
+

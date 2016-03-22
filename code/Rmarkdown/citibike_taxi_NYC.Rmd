@@ -1,0 +1,387 @@
+---
+title: "Citibike and Taxi NYC Data"
+author: "Natasa"
+date: "Saturday, July 18, 2015"
+output: html_document
+---
+
+## Question
+
+What is faster: riding by citibikes or driving by taxis?
+
+## Data Collection
+
+Citibike [http://www.citibikenyc.com/system-data](http://www.citibikenyc.com/system-data)
+
+Taxi [http://www.andresmh.com/nyctaxitrips/](http://www.andresmh.com/nyctaxitrips/)
+
+The tool used for data collection and data analysis is R programming. The memory limitation is 8GB RAM. 
+
+In this report we consider only data from October 2013. The citibike data from October 2013 can be loaded directly into R. There are 1037712 observations of 15 variables.
+
+```{r,eval=FALSE}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/citibike/raw/201310-citibike-tripdata.zip"
+citibikeOct13 <- read.csv(unz(file, "2013-10 - Citi Bike trip data.csv"),stringsAsFactors=FALSE)
+```
+
+The taxi data from October 2013 is too big. There are 15004556 observations of 8 variables. Hence we read taxi data into R in smaller chunks. Each chunk is filtered by a particular day of the month and written into a file for that day. 
+
+```{r,eval=FALSE}
+file1<-"C:/Users/natasa/Documents/projectAmadeus/data/taxi/raw/trip_data_10.csv"
+con1 <- file(file1, open="r")
+file2<-"C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/tripdata10_01.csv"
+colnames<-readLines(con1,1)[[1]]
+cat(colnames,file=file2,append=TRUE)
+readsizeof <- 50000; nooflines <- 0
+while ((linesread<-length(datastring <- readLines(con1,n=readsizeof))) > 0 ) {        
+        nooflines<-nooflines+linesread
+        data<-strsplit(datastring,",")
+        ind<-sapply(data,function(x)(x[6]>='2013-10-01 00:00:00' & x[6]<'2013-10-02 00:00:00'))                
+        cat(datastring[ind],file=file2,append=TRUE,sep="\n") 
+        
+}
+```
+
+
+## Exploratory Data Analysis
+
+We look at data from October 2013 for citibike (1037712 observations), and we look at data from one day (October 1, 2013) for taxi (452769 observations). 
+
+### Citibike Data
+
+The citibike data variables used in the analysis:
+- trip duration in seconds
+- start time (stop time is used only to check correctness of trip duration)
+- start and end station locations given by latitude and longitude
+
+We create two new variables:
+- straight line euclidian distance between start and end stations
+- speed under the assumption that the bike rides on the straight line between start and end stations
+
+Next, we look at distribution of trip duration, distance and speed.
+
+```{r,echo=FALSE,cache=TRUE,fig.height=6}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/cbOct13.rdata"
+load(file=file)
+q1<-quantile(cbOct13$tripduration/60)
+q2<-quantile(cbOct13$distance)
+q3<-quantile(cbOct13$speedkmh)
+par(mfrow=c(3,1),mar=c(4,4,3,1))
+hist(cbOct13$tripduration/60,xlim=c(0,60),breaks=seq(0,20992,1),
+     main="Histogram of tripduration",xlab='minutes')
+abline(v=c(q1[2],q1[4]),col="blue",lwd=2)
+abline(v=q1[3],col="red",lwd=2)
+hist(cbOct13$distance,breaks=seq(0,10400,100),xlim=c(0,5000),
+     main="Histogram of distance",xlab='m')
+abline(v=c(q2[2],q2[4]),col="blue",lwd=2)
+abline(v=q2[3],col="red",lwd=2)
+hist(cbOct13$speedkmh,breaks=seq(0,430,1),xlim=c(0,40),
+     main="Histogram of speed",xlab='km/h')
+abline(v=c(q3[2],q3[4]),col="blue",lwd=2)
+abline(v=q3[3],col="red",lwd=2)
+q1<-quantile(cbOct13$tripduration/60,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q2<-quantile(cbOct13$distance,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q3<-quantile(cbOct13$speedkmh,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+
+citibike_tripduration_quantiles<-q1
+citibike_distance_quantiles<-q2
+citibike_speed_quantiles<-q3
+```
+
+```{r}
+citibike_tripduration_quantiles
+citibike_distance_quantiles
+citibike_speed_quantiles
+```
+
+We see here that there are a non-realistic value for both the trip duration and the speed. For example, 95\% of trips duration has less than 32 minutes, and the maximimum trip duration is 20991.3 minute.s Also, we see that there are a number of entries with a very small speed and a very high speed. The high value of a trip duration and a small speed can be explained with the following. The biker did not ride a bike all the time, or she did not drive directly from the start station to the end station. 
+
+The high value of the speed (maximum is 427km/h) is quite suprising. I asked the citibike company about a possible reason and they told me the following. Back in Oct 2013 their software identified docks with stations, but if a plate (4 docks) was moved the software might still think the dock was with the old station. So it is possible this trip was between a dock that used to be at one of those two stations but was now relocated to another closer station."
+
+Hence, these entries with either too small speed or too larger speed are not representative for the time duration necessary to come from one station to another. 
+
+Let us now look at the distribution of trip duration, distance and speed for business days. There are 808330 observations.
+
+```{r,echo=FALSE,cache=TRUE,fig.height=6}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/cbOct13rb.rdata"
+load(file)
+
+q1<-quantile(cbOct13rb$tripduration/60)
+q2<-quantile(cbOct13rb$distance)
+q3<-quantile(cbOct13rb$speedkmh)
+par(mfrow=c(3,1),mar=c(4.5,4.5,2.5,1))
+hist(cbOct13rb$tripduration/60,xlim=c(0,60),breaks=seq(0,20992,1),
+     main="Histogram of tripduration for business days",xlab='minutes',ylab='Trip duration')
+abline(v=c(q1[2],q1[4]),col="blue",lwd=2)
+abline(v=q1[3],col="red",lwd=2)
+hist(cbOct13rb$distance,breaks=seq(0,10400,100),xlim=c(0,5000),
+     main="Histogram of distance for business days",xlab='m',ylab='Distance')
+abline(v=c(q2[2],q2[4]),col="blue",lwd=2)
+abline(v=q2[3],col="red",lwd=2)
+hist(cbOct13rb$speedkmh,breaks=seq(0,430,1),xlim=c(0,40),
+     main="Histogram of speed for business days",xlab='km/h',ylab='Speed')
+abline(v=c(q3[2],q3[4]),col="blue",lwd=2)
+abline(v=q3[3],col="red",lwd=2)
+q1<-quantile(cbOct13rb$tripduration/60,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q2<-quantile(cbOct13rb$distance,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q3<-quantile(cbOct13rb$speedkmh,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+citibike_tripduration_quantiles<-q1
+citibike_distance_quantiles<-q2
+citibike_speed_quantiles<-q3
+```
+
+```{r}
+citibike_tripduration_quantiles
+citibike_distance_quantiles
+citibike_speed_quantiles
+```
+
+The distribution of speed during business days is similar and even the speed is slightly larger than during weekend.Also we see that the trip duration is smaller during business days. This tell us that the small speed (large trip duration) is not due to business hours but mainly due to people not directly going from the start station to the end station. Moreover the 10% percentile of speed is 4.79 km/h which is relatively low for a bike even during business days. 
+Therefore, we consider it safe to filter the business data for which the speed is greater than the speed of 10% of the population  and less than 95% of the population. 
+
+### Taxi Data
+
+The taxi data variables used in the analysis:
+- trip duration in seconds
+- pick-up time (drop-off time is used only to check correctness of trip duration)
+- pick-up and drop-off locations given by latitude and longitude
+- trip distance given in miles that we convert in meters
+
+We create two new variables:
+- straight line euclidian distance between pick-up and drop-off locations
+- speed calculated using trip distance (for the citibike data we use straight line distance)
+
+Since our goal is to compare citibikes and taxis, we consider only trips in the area of the citibike stations.
+Next, we look at distribution of trip duration, trip distance, speed, and the ratio between trip distance and straight line distance. First we discard 2 observations with missing values, and observations with the trip duration and the trip distance equal to 0. 
+
+```{r,echo=FALSE,cache=TRUE,fig.height=10}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/t01Oct13cb.rdata"
+load(file)
+q1<-quantile(t01Oct13cb$trip_time_in_secs/60)
+q2<-quantile(t01Oct13cb$trip_distance_m)
+q5<-quantile(t01Oct13cb$distance)
+q3<-quantile(t01Oct13cb$speedkmh)
+q4<-quantile(t01Oct13cb$trip_distance_m/t01Oct13cb$distance)
+par(mfrow=c(4,1),mar=c(4.5,4.5,2.5,1))
+xmax<-ceiling(max(t01Oct13cb$trip_time_in_secs/60))
+hist(t01Oct13cb$trip_time_in_secs/60,xlim=c(0,60),breaks=seq(0,xmax,1),
+     main="Histogram of trip duration",xlab='minutes')
+abline(v=c(q1[2],q1[4]),col="blue",lwd=2)
+abline(v=q1[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cb$trip_distance_m))
+hist(t01Oct13cb$trip_distance_m,breaks=seq(0,xmax+200,200),xlim=c(0,10000), main="Histogram of trip distance",xlab='m')
+
+abline(v=c(q2[2],q2[4]),col="blue",lwd=2)
+abline(v=q2[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cb$distance))
+hist(t01Oct13cb$distance,breaks=seq(0,xmax+200,200),xlim=c(0,10000),main="Histogram of straight line distance",xlab='m')
+abline(v=c(q5[2],q5[4]),col="blue",lwd=2)
+abline(v=q5[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cb$speedkmh))
+hist(t01Oct13cb$speedkmh,breaks=seq(0,xmax,1),xlim=c(0,60),
+     main="Histogram of speed",xlab='km/h')
+abline(v=c(q3[2],q3[4]),col="blue",lwd=2)
+abline(v=q3[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cb$trip_distance_m/t01Oct13cb$distance))
+hist(t01Oct13cb$trip_distance_m/t01Oct13cb$distance,breaks=seq(0,xmax,0.05),xlim=c(0,2.5),
+     main="Histogram of the ratio of trip distance and straight line distance",xlab='')
+abline(v=c(q4[2],q4[4]),col="blue",lwd=2)
+abline(v=q4[3],col="red",lwd=2)
+q1<-quantile(t01Oct13cb$trip_time_in_secs/60,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q2<-quantile(t01Oct13cb$trip_distance_m,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q5<-quantile(t01Oct13cb$distance,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q3<-quantile(t01Oct13cb$speedkmh,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q4<-quantile(t01Oct13cb$trip_distance_m/t01Oct13cb$distance,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+taxi_tripDuration_quantiles<-q1
+taxi_tripDistance_quantiles<-q2
+taxi_distance_quantiles<-q5
+taxi_speed_quantiles<-q3
+taxi_ratioTripStraightDistance_quantiles<-q4
+```
+
+```{r}
+taxi_tripDuration_quantiles
+taxi_tripDistance_quantiles
+taxi_distance_quantiles
+taxi_speed_quantiles
+taxi_ratioTripStraightDistance_quantiles
+```
+
+We see also here that in some cases the trip distance is much larger than straight line distance and in some cases the trip speed is unrealistically large . The former cases could occur if a taxi does not travel directly from one location to another. The second cases could occur because of the time and distance measurement granularity, or simply they could be errors. 
+
+We take into account only the data for which the trip distance is between 10% and 90% of the straight line distances of all trips, and the speed is within the 95% of speed of all trips. 
+
+## Data Preprocessing
+
+In this project we are interested mainly in the speed of the bikes and citibikes, i.e., for how much time they can come from one location to another one. As we saw previously, some observations are not representative for showing this time. The main reason is that the traveler is not traveling directly from its start location to its end location, or maybe she makes a pause in her traveling somewhere in between. There are also a number of errors in data due to an error in the sistem and a granularity of distance and duration measuremetnts.
+
+To filter non-representative data we use the following rules:
+- for the citibike data we take only those for which the speed is larger than the 10th percentile and less than the 95th percentile 
+- for the taxi data we take only those for which the speed is less than the 95th percentile
+- for the taxi data we take only those for which the ratio between the trip and straight line distances is larger than the 10th percentile and less than the 95th percentile.
+
+After filtering, the citibike data consist of 687080 observations and the taxi data consist of 235266 observations.
+
+Next we show the distribution of the same variables as previously for the filtered citibike and taxi data.
+
+```{r,echo=FALSE,cache=TRUE,fig.height=6}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/cbOct13rbpp.rdata"
+load(file)
+
+q1<-quantile(cbOct13rbpp$tripduration/60)
+q2<-quantile(cbOct13rbpp$distance)
+q3<-quantile(cbOct13rbpp$speedkmh)
+par(mfrow=c(3,1),mar=c(4.5,4.5,2.5,1))
+hist(cbOct13rbpp$tripduration/60,xlim=c(0,60),breaks=seq(0,20992,1),
+     main="Citibike: Histogram of tripduration",xlab='minutes',ylab='Trip duration')
+abline(v=c(q1[2],q1[4]),col="blue",lwd=2)
+abline(v=q1[3],col="red",lwd=2)
+hist(cbOct13rbpp$distance,breaks=seq(0,10400,100),xlim=c(0,5000),
+     main="Citibike: Histogram of distance",xlab='m',ylab='Distance')
+abline(v=c(q2[2],q2[4]),col="blue",lwd=2)
+abline(v=q2[3],col="red",lwd=2)
+hist(cbOct13rbpp$speedkmh,breaks=seq(0,430,1),xlim=c(0,40),
+     main="Citibike: Histogram of speed",xlab='km/h',ylab='Speed')
+abline(v=c(q3[2],q3[4]),col="blue",lwd=2)
+abline(v=q3[3],col="red",lwd=2)
+citibike_tripduration_quantiles<-q1
+citibike_distance_quantiles<-q2
+citibike_speed_quantiles<-q3
+```
+
+```{r}
+citibike_tripduration_quantiles
+citibike_distance_quantiles
+citibike_speed_quantiles
+```
+
+
+```{r,echo=FALSE,cache=TRUE,fig.height=10}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/t01Oct13cbpp2.rdata"
+load(file)
+q1<-quantile(t01Oct13cbpp$trip_time_in_secs/60)
+q2<-quantile(t01Oct13cbpp$trip_distance_m)
+q5<-quantile(t01Oct13cbpp$distance)
+q3<-quantile(t01Oct13cbpp$speedkmh)
+q4<-quantile(t01Oct13cbpp$trip_distance_m/t01Oct13cbpp$distance)
+par(mfrow=c(4,1),mar=c(4.5,4.5,2.5,1))
+xmax<-ceiling(max(t01Oct13cbpp$trip_time_in_secs/60))
+hist(t01Oct13cbpp$trip_time_in_secs/60,xlim=c(0,60),breaks=seq(0,xmax,1),
+     main="Histogram of trip duration",xlab='minutes')
+abline(v=c(q1[2],q1[4]),col="blue",lwd=2)
+abline(v=q1[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cbpp$trip_distance_m))
+hist(t01Oct13cbpp$trip_distance_m,breaks=seq(0,xmax+200,200),xlim=c(0,10000), main="Histogram of trip distance",xlab='m')
+
+abline(v=c(q2[2],q2[4]),col="blue",lwd=2)
+abline(v=q2[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cbpp$distance))
+hist(t01Oct13cbpp$distance,breaks=seq(0,xmax+200,200),xlim=c(0,10000),main="Histogram of straight line distance",xlab='m')
+abline(v=c(q5[2],q5[4]),col="blue",lwd=2)
+abline(v=q5[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cbpp$speedkmh))
+hist(t01Oct13cbpp$speedkmh,breaks=seq(0,xmax,1),xlim=c(0,60),
+     main="Histogram of speed",xlab='km/h')
+abline(v=c(q3[2],q3[4]),col="blue",lwd=2)
+abline(v=q3[3],col="red",lwd=2)
+xmax<-ceiling(max(t01Oct13cbpp$trip_distance_m/t01Oct13cbpp$distance))
+hist(t01Oct13cbpp$trip_distance_m/t01Oct13cbpp$distance,breaks=seq(0,xmax,0.05),xlim=c(0,2.5),
+     main="Histogram of the ratio of trip distance and straight line distance",xlab='')
+abline(v=c(q4[2],q4[4]),col="blue",lwd=2)
+abline(v=q4[3],col="red",lwd=2)
+q1<-quantile(t01Oct13cbpp$trip_time_in_secs/60,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q2<-quantile(t01Oct13cbpp$trip_distance_m,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q5<-quantile(t01Oct13cbpp$distance,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q3<-quantile(t01Oct13cbpp$speedkmh,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+q4<-quantile(t01Oct13cbpp$trip_distance_m/t01Oct13cbpp$distance,probs=c(0,0.05,0.1,0.25,0.5,0.75,0.9,0.95,1))
+taxi_tripDuration_quantiles<-q1
+taxi_tripDistance_quantiles<-q2
+taxi_distance_quantiles<-q5
+taxi_speed_quantiles<-q3
+taxi_ratioTripStraightDistance_quantiles<-q4
+```
+
+```{r}
+taxi_tripDuration_quantiles
+taxi_tripDistance_quantiles
+taxi_distance_quantiles
+taxi_speed_quantiles
+taxi_ratioTripStraightDistance_quantiles
+```
+
+
+## Comparing Speed of Citibikes and Taxis
+
+First, we make a predictive model for the trip duration both for the citibikes and taxis. Then we compare the trip duration of the two models on the citibike data.
+
+The predictor variables are the trip start and end locations (given in latitude and longitude ) and the trip start time (an hour and minute expressed in a decimal hour). The outcome is the trip duration.
+
+We use a support vector machine regression (SVM) model, because it is a robust regression model that seeks to minimize the effect or outliers on the regression equation. To make a SVM model in a reasonable time, we were able to train at most about 60000 observations. Hence, we make an ensamble model of several support vector machine models and we aggregate them by taking the median value.
+
+## Citibike Model
+
+The preprocessed citibike data consist of 687080 observations. 
+90% of the data are used for the training and 10% of the data for the testing.
+
+We make an ensamble model of 5 support vector machine models.
+ Hence, we randomly sample the data 5 times and make 5 samples of 60000 observations. The sampling is performed in such a way to balance the trip start hour. We order the data by the trip start hour and then we sample every 10th observations.
+
+From each sample we make a SVM model using the `kernlab` package and the default parameters. Then we aggregate these 5 models by taking the median value.
+
+
+```{r,echo=FALSE,cache=TRUE,message=FALSE,warning=FALSE, comment=FALSE, fig.height=6}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/cbOct13rbppModelDur.rdata"
+load(file=file)
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/fits/cbOct13rbppmodelDur.rdata"
+load(file=file)
+df<-data.frame(obs=cbOct13rbppModelDurTest[,1],pred=cb_svmPred[,6])
+library(ggplot2)
+ggplot(df, aes(obs,pred)) + geom_point(size=0.001) + 
+        geom_smooth(size=0.7) + geom_abline(size=0.7,col="red") +
+        labs(title="Citibike: Predicted vs. observed values") + 
+        labs(x='Observed trip duration (secs)') + 
+        labs(y='Predicted trip duration (secs)') + 
+        coord_cartesian(xlim = c(0, 3000))
+```
+
+We see that for the small trip duration the predictions tend to be larger than the observations, while for the large trip duration the predictions tend to be smaller than the observations. 
+
+## Taxi Model
+
+The preprocessed taxi data consist of 235266 observations. 
+90% of the data are used for the training and 10% of the data for the testing.
+
+We make an ensemble model of 4 support vector machine models.
+We randomly sample the data 4 times and make 4 samples of about 50000 observations. The sampling is performed in such a way to balance the trip start hour. We order the data by the trip start hour and then we sample every 4th observations.
+
+From each sample we make a SVM model using the `kernlab` package with the default parameters. Then we aggregate these 5 models by taking the median value.
+
+
+```{r,echo=FALSE,cache=TRUE,message=FALSE, warning=FALSE, comment=FALSE, fig.height=6}
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/t01Oct13cb2ModelDur.rdata"
+load(file=file)
+file<-"C:/Users/natasa/Documents/projectAmadeus/data/fits/t01Oct13cb2modelDur.rdata"
+load(file=file)
+df<-data.frame(obs=t01Oct13cbModelDurTest[,1],pred=t_svmPred[,5])
+library(ggplot2)
+ggplot(df, aes(obs,pred)) + geom_point(size=0.001) + 
+        geom_smooth(size=0.7) + geom_abline(size=0.7,col="red") +
+        labs(title="Taxi: Predicted vs. observed values") + 
+        labs(x='Observed trip duration (secs)') + 
+        labs(y='Predicted trip duration (secs)') +  
+        coord_cartesian(xlim = c(0, 3000))
+```
+
+We see that for the small trip duration the predictions tend to be larger than the observations, while for the large trip duration the predictions tend to be smaller than the observations.
+
+## Comparison
+
+To compare the speed of citibikes and taxis, we run both the citibike's model and the taxi's model of the trip duration on the citibike's preprocessed data for business days. We use only the testing data (as described in the section *Citibike Model*).
+
+
+
+
+
+
+
+

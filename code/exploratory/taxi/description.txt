@@ -1,0 +1,48 @@
+C:\Users\natasa\Documents\projectAmadeus\code\exploratory\taxi
+t_collect.R
+	download taxi data for October 2013: 
+		C:/Users/natasa/Documents/projectAmadeus/data/taxi/raw/trip_data_10.csv.zip
+	data too big to load all into R: 80820000 lines
+	we read data into R into chunks of 50000 lines, from each chunk we write into a file the observations for October 1st 
+		C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/tripdata10_01.csv
+		C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/taxi10_01.rdata
+		15004556 observations
+t_preprocess.R
+	load taxi data for 1st October 2013 into R: taxi10_01
+		C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/tripdata10_01.csv
+		> str(taxi10_01)
+		'data.frame':	452769 obs. of  14 variables:
+		 $ medallion         : chr  "740BD5BE61840BE4FE3905CC3EBE3E7E" "4189F914006587B29C9822074FBD6AAE" "34E35AAE6E2632681D94D75376F4B77A" "740BD5BE61840BE4FE3905CC3EBE3E7E" ...
+		 $ hack_license      : chr  "E48B185060FB0FF49BE6DA43E69E624B" "9C98405D707D0F298AE7CDC51AE57AF1" "5F20323999D10FE1289CF5086996E7BA" "E48B185060FB0FF49BE6DA43E69E624B" ...
+		 $ vendor_id         : chr  "CMT" "CMT" "CMT" "CMT" ...
+		 $ rate_code         : chr  "1" "1" "1" "1" ...
+		 $ store_and_fwd_flag: chr  "N" "N" "N" "N" ...
+		 $ pickup_datetime   : chr  "2013-10-01 12:44:29" "2013-10-01 22:05:50" "2013-10-01 18:13:30" "2013-10-01 13:45:48" ...
+		 $ dropoff_datetime  : chr  "2013-10-01 12:53:26" "2013-10-01 22:32:02" "2013-10-01 18:19:46" "2013-10-01 14:07:00" ...
+		 $ passenger_count   : chr  "1" "1" "1" "1" ...
+		 $ trip_time_in_secs : chr  "536" "1571" "375" "1272" ...
+		 $ trip_distance     : chr  "1.20" "11.3" "0.9" "2.5" ...
+		 $ pickup_longitude  : chr  "-73.974319" "-73.975067" "-73.981979" "-73.975067" ...
+		 $ pickup_latitude   : chr  "40.741859" "40.755222" "40.769035" "40.790249" ...
+		 $ dropoff_longitude : chr  "-73.99115" "-73.909538" "-73.982147" "-73.974586" ...
+		 $ dropoff_latitude  : chr  "40.742424" "40.887115" "40.780952" "40.759808" ...
+	taxi10_01pp
+		filter the following columns:
+		> names(taxi10_01pp)
+		[1] "pickup_datetime"   "dropoff_datetime"  "trip_time_in_secs" "trip_distance"    
+		[5] "pickup_longitude"  "pickup_latitude"   "dropoff_longitude" "dropoff_latitude" 		
+		make trip distance in m, make speed column (m/s), make speed column (km/h)
+		C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/taxi10_01pp.rdata
+	taxi10_01pp_cb
+		consider only those rows with pickup and dropoff within the area of bike stations
+			dim(taxi10_01pp_cb)
+			#[1] 310058      9
+		remove rows with NA values in trip_time_in_secs, consider only entries where 
+			dim(taxi10_01pp_cb)
+			#[1] 306082     11
+		consider only entries where:
+			trip_distance_m>400, trip_time_in_secs>30, speedkmh<100
+			(dropoff_datetime - pickup_datetime)-trip_time_in_secs<10
+		306033  observations
+		C:/Users/natasa/Documents/projectAmadeus/data/taxi/processed/taxi10_01pp_cb.rdata
+		

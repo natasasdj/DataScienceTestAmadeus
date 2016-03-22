@@ -1,0 +1,46 @@
+
+
+cb_collect.R
+	download, unzip and load into R data for citibike October 2013
+	save data variable citibikeOct13 into C:/Users/natasa/Documents/projectAmadeus/data/citibike/raw/citybikeOct13.rdata
+	find the number of stations: 330
+	
+cb_preprocess.R
+	citibikeOct13: 1037712 observations
+	citibikeOct13pp
+		we consider only trips less than 30 minutes
+	 	(looking at histogram of trip duration we see that most of the trips last from 5 to 8 minutes, 
+		the number of trips that last more than 30 minutes is 5.7%)
+		tripdistance at least 200m (there are a number of trips less than 50 m - mistake)
+		tripduration > 60s
+		959351 observations
+		change start and stop time into POSIXlt
+		save data into C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/citibikeOct13pp.rdata
+	cbOct13b
+		citibike data for October 2013 business days (Mon - Fri)
+		save data into C:/Users/natasa/Documents/projectAmadeus/data/citibike/processed/cbOct13b.rdata
+
+cb_distance.R
+	get driving distance from google maps api
+	get shortest distance (on earth) using Imap.gdist (put into citibikeOct13pp$distance)
+	update citibikeOct13pp with citibikeOct13pp$distance  and save into C:/Users/natasa/Documents/projectAmadeus/data/citibike/raw/citybikeOct13.rdata
+	
+cb_distance_hist.R
+	histogram of citibikeOct13pp$distance
+	
+cb_dist_bins.R
+	bins for each 100m distance from 200m to 5000m total, at 9h, at 20h
+
+cb_duration_between_popularst.R	
+	find the most popular stations during the weekday:Mon to Fri
+	for each station with more than 100 observation perform cutting, and keep this data for a model of tripduration
+	cutting based on median (0.8m,1.2m) of trip duration for a station
+	
+cb_duration_hist.R
+	histogram of tripduration
+	
+cb_speed.R cb_speed_between_stations
+	consider speed (distance/trip duration) instead of duration
+	
+
+	
